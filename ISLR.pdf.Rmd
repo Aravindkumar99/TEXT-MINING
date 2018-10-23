@@ -1,0 +1,88 @@
+---
+title: "Assignment_2"
+author: "Tanuj Maithani"
+date: "September 25, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(pdftools)
+library(tm)
+library(topicmodels)
+library(tidytext)
+```
+
+```{r}
+book = pdf_text("ISLR.pdf")
+```
+
+
+```{r}
+regex_func = function(x){return(gsub('[^a-z ]','',x))}
+common_stop_words = stopwords()
+custom_stop_words = c('set','can','get','will','using')
+all_stop_words = append(common_stop_words,custom_stop_words)
+
+```
+
+###### Create the corpus using the PDF file and apply standard text cleaning techniques to clean the text :
+
+```{r}
+docs = VCorpus(VectorSource(book))
+docs = tm_map(docs, content_transformer(tolower))
+docs = tm_map(docs, content_transformer(regex_func))
+docs = tm_map(docs,stripWhitespace)
+docs = tm_map(docs, removeWords, all_stop_words)
+```
+
+###### Create the Document Term Matrix from the corpus
+
+```{r}
+dtm = DocumentTermMatrix(docs)
+df_dtm = as.data.frame(as.matrix(dtm))
+dim(df_dtm)
+head(df_dtm,10)
+```
+
+###### Apply topic modelling using LDA technique with 4 topics and get topic to word matrix and document to topic matrix
+
+```{r}
+dtm_nonsparse = removeSparseTerms(dtm,sparse = 0.95)
+dtm_nonsparse = dtm_nonsparse[rowSums(as.matrix(dtm_nonsparse))>0,]
+
+lda.out = LDA(dtm_nonsparse,4,method = 'Gibbs')
+
+word2topic = tidy(lda.out, matrix ="beta")
+doc2topic = tidy(lda.out, matrix = "gamma")
+View(word2topic)
+View(doc2topic)
+```
+
+###### Plot the top 5 words across each topic as bar charts
+
+```{r}
+library(dplyr)
+library(ggplot2)
+word2topic %>% group_by(topic) %>% arrange(topic,-beta) %>% top_n(5) %>% ungroup() %>% 
+  ggplot(aes(x=reorder(term, beta), y=beta)) + geom_bar(stat='identity') + facet_wrap(~topic, scales='free') + coord_flip()
+```
+
+
+###### Plot topic wise no. of documents in a simple bar chart (i.e no. of pages in our examples)
+
+```{r}
+doc2topic %>% group_by(document) %>%arrange(document,-gamma)%>% top_n(1) %>%
+  group_by(topic) %>% summarise(documents=n()) %>%
+  ggplot(aes(x=topic, y=documents)) + geom_bar(stat="identity")
+```
+
+
+
+
+
+
+
